@@ -264,9 +264,11 @@ raw_data = loadjson('original_data_no_user_all_new.json');
 l = length(raw_data);
 y = zeros(l,1);
 X = zeros(l,10);
+iteration = zeros(l,1);
 for i = 1:l
     y(i) = raw_data{i}.score>0.1;
     X(i,:) = [(raw_data{i}.finaldrive-10)/(40-10),str2num(raw_data{i}.keys)];
+    iteration(i) = raw_data{i}.iteration;
 end
 Xtrain = X(y>0,:);
 model = svmtrain(ones(size(Xtrain,1),1), Xtrain, '-s 2 -t 2 -n 1e-6 -e 1e-12');
@@ -274,6 +276,7 @@ model.SVs = full(model.SVs);
 model.sv_coef = model.sv_coef';
 savejson('model',model,'.\EGO_model.json');
 
+<<<<<<< HEAD
 % We used EGO_model on the long track and showed that it performs as well
 % as learning from human data. So learning from EGO itself for 200 iterations is similar to
 % learning from human
@@ -290,3 +293,56 @@ longtrack_data_use_EGO = [[-48.7,-48.7,-48.7,-48.7,-48.7,-48.7,-48.7,-48.7,-48.7
 
 
 
+=======
+% check EGO learning progress, i.e., how many successful plays along
+% iteration
+unique_iteration = unique(iteration);
+success_percentage = zeros(200,1); % experiments have 200 iterations
+for i = 1:200
+    success_percentage(i) = sum(y(iteration==i))/sum(iteration==i);
+end
+EGO_cumulative_success_percentage = (tril(ones(numel(success_percentage)),0)*...
+    success_percentage)./(1:numel(success_percentage))';
+plot(EGO_cumulative_success_percentage);
+
+% compare EGO success rate with human
+original_data = loadjson('.\data.json');
+% score = load('score_after_player_simulation.mat','score');
+% simulate_score = score.score; % load player score after simulation
+player_performance = cell(250,1);
+for i = 1:length(original_data)
+    data = original_data{i};
+    score = (1-data.score/3600/0.55/1000)*100*sign(data.score+1);
+%     if simulate_score(i)>0
+%         score = simulate_score(i);
+%     else
+%         score = 0;
+%     end
+    % if data(consumption) is -1, it is a failed trial.
+
+    if isempty(player_performance{data.userid})
+        player_performance{data.userid} = score;
+    else
+        player_performance{data.userid} = [player_performance{data.userid}, score];
+    end
+end
+success_percentage = zeros(200,1); % consider the first 200 iterations
+plays_iter = zeros(200,1); % count number of plays per iteration
+for i = 1:200
+    for j = 1:length(player_performance)
+        p = player_performance{j};
+        if length(p)>=i
+            plays_iter(i) = plays_iter(i) + 1;
+            if p(i)>0
+                success_percentage(i) = success_percentage(i) + 1;
+            end
+        end
+    end
+end
+success_percentage = success_percentage./plays_iter;
+HUMAN_cumulative_success_percentage = (tril(ones(numel(success_percentage)),0)*...
+    success_percentage)./(1:numel(success_percentage))';
+plot(HUMAN_cumulative_success_percentage);
+
+%compare all human scores to ego scores
+>>>>>>> local change before pulling from git for ego500
