@@ -301,8 +301,8 @@ longtrack_data_first500 = [[2.3333333333333335,2.3333333333333335,2.333333333333
 
 %%% Train a model from EGO original, using the first 100 iterations from
 %%% each run
-addpath('..\..\..\code\tools\jsonlab\');
-addpath('..\..\..\code\tools\libsvm\matlab\');
+addpath('..\..\code\tools\jsonlab\');
+addpath('..\..\code\tools\libsvm\matlab\');
 raw_data = loadjson('original_data_no_user_all_new.json');
 l = length(raw_data);
 y = zeros(l,1);
@@ -310,14 +310,14 @@ X = zeros(l,10);
 count = 1;
 for i = 1:l
     if (raw_data{i}.iteration<=100)
-        y(count) = raw_data{i}.score>0.1;
+        y(count) = raw_data{i}.score;
         X(count,:) = [(raw_data{i}.finaldrive-10)/(40-10),str2num(raw_data{i}.keys)];
         count = count + 1;
     end
 end
 y = y(1:count-1,:);
 X = X(1:count-1,:);
-Xtrain = X(y>0,:);
+Xtrain = X(y>0.1,:);
 model = svmtrain(ones(size(Xtrain,1),1), Xtrain, '-s 2 -t 2 -n 1e-6 -e 1e-12');
 model.SVs = full(model.SVs);
 model.sv_coef = model.sv_coef';
