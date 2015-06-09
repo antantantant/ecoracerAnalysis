@@ -297,9 +297,10 @@ longtrack_data_first500 = [[2.3333333333333335,2.3333333333333335,2.333333333333
 [-27.7,-27.7,-27.7,-27.7,-27.7,-27.7,-27.7,-27.7,-27.7,-38.9,-38.9,-38.9,-38.9,-38.9,-38.9,-38.9,-38.9,-38.9,-38.9,-38.9,-38.9,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-39.5,-41.4,-41.4,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6,-50.6]];
 
 %%% looks like User500 and EGO (from EGO) on long track have comparable
-%%% performance. Let's further check User500 vs EGO500
+%%% performance. Let's further check User500 vs EGO500 and User100 vs
+%%% EGO100
 
-%%% Train a model from EGO original, using the first 100 iterations from
+%%% Train a model from EGO original, using the first 100/20 iterations from
 %%% each run
 addpath('..\..\code\tools\jsonlab\');
 addpath('..\..\code\tools\libsvm\matlab\');
@@ -309,7 +310,7 @@ y = zeros(l,1);
 X = zeros(l,10);
 count = 1;
 for i = 1:l
-    if (raw_data{i}.iteration<=100)
+    if (raw_data{i}.iteration<96)
         y(count) = raw_data{i}.score;
         X(count,:) = [(raw_data{i}.finaldrive-10)/(40-10),str2num(raw_data{i}.keys)];
         count = count + 1;
@@ -323,8 +324,65 @@ model.SVs = full(model.SVs);
 model.sv_coef = model.sv_coef';
 savejson('model',model,'.\EGO_model500.json');
 
+%%% below are results for ego500 and ego100 on long track
+score100 = zeros(10,210);
+count = ones(1,210);
+for i = 1:5
+    raw_data = loadjson(['ego100_',num2str(i),'.json']);
+    for j = 1:length(raw_data)
+        d = raw_data{j};
+        score100(count(d.iteration+1),d.iteration+1) = d.score;
+        count(d.iteration+1) = count(d.iteration+1) + 1;
+    end
+end
+best_score100 = zeros(10,210);
+%%%for the first column
+for i = 1:10
+    best_score100(i,1) = max(score100((i-1)*5+(1:5),1));
+end
+%%%for the rest columns
+for i = 1:10
+    best = best_score100(i,1);
+    for j = 2:210
+        if best>score100(i,j)
+            best_score100(i,j) = best;
+        else
+            best_score100(i,j) = score100(i,j);
+            best = score100(i,j);
+        end
+    end
+end
+plot(mean(best_score100,1));
 
-
+score100 = zeros(10,210);
+count = ones(1,210);
+for i = 1:5
+    raw_data = loadjson(['ego100_',num2str(i),'.json']);
+    for j = 1:length(raw_data)
+        d = raw_data{j};
+        score100(count(d.iteration+1),d.iteration+1) = d.score;
+        count(d.iteration+1) = count(d.iteration+1) + 1;
+    end
+end
+best_score500 = zeros(10,210);
+%%%for the first column
+for i = 1:10
+    best_score500(i,1) = max(score500((i-1)*5+(1:5),1));
+end
+%%%for the rest columns
+for i = 1:10
+    best = best_score500(i,1);
+    for j = 2:210
+        if best>score500(i,j)
+            best_score500(i,j) = best;
+        else
+            best_score500(i,j) = score500(i,j);
+            best = score500(i,j);
+        end
+    end
+end
+hold on;
+plot(mean(best_score500,1));
 
 
 

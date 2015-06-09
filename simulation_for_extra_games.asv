@@ -324,8 +324,65 @@ model.SVs = full(model.SVs);
 model.sv_coef = model.sv_coef';
 savejson('model',model,'.\EGO_model500.json');
 
+%%% below are results for ego500 and ego100 on long track
+score100 = zeros(10,210);
+count = ones(1,210);
+for i = 1:5
+    raw_data = loadjson(['ego100_',num2str(i),'.json']);
+    for j = 1:length(raw_data)
+        d = raw_data{j};
+        score100(count(d.iteration+1),d.iteration+1) = d.score;
+        count(d.iteration+1) = count(d.iteration+1) + 1;
+    end
+end
+best_score100 = zeros(10,210);
+%%%for the first column
+for i = 1:10
+    best_score100(i,1) = max(score100((i-1)*5+(1:5),1));
+end
+%%%for the rest columns
+for i = 1:10
+    best = best_score100(i,1);
+    for j = 2:210
+        if best>score100(i,j)
+            best_score100(i,j) = best;
+        else
+            best_score100(i,j) = score100(i,j);
+            best = score100(i,j);
+        end
+    end
+end
+plot(mean(best_score100,1));
 
-
+score500 = zeros(10,210);
+count = ones(1,210);
+for i = 1:5
+    raw_data = loadjson(['ego500_',num2str(i),'.json']);
+    for j = 1:length(raw_data)
+        d = raw_data{j};
+        score500(count(d.iteration+1),d.iteration+1) = d.score;
+        count(d.iteration+1) = count(d.iteration+1) + 1;
+    end
+end
+best_score500 = zeros(10,210);
+%%%for the first column
+for i = 1:10
+    best_score500(i,1) = max(score500((i-1)*5+(1:5),1));
+end
+%%%for the rest columns
+for i = 1:10
+    best = best_score500(i,1);
+    for j = 2:210
+        if best>score500(i,j)
+            best_score500(i,j) = best;
+        else
+            best_score500(i,j) = score500(i,j);
+            best = score500(i,j);
+        end
+    end
+end
+hold on;
+plot(mean(best_score500,1));
 
 
 
