@@ -266,7 +266,7 @@ y = zeros(l,1);
 X = zeros(l,10);
 iteration = zeros(l,1);
 for i = 1:l
-    y(i) = raw_data{i}.score>0.1;
+    y(i) = raw_data{i}.score;
     X(i,:) = [(raw_data{i}.finaldrive-10)/(40-10),str2num(raw_data{i}.keys)];
     iteration(i) = raw_data{i}.iteration;
 end
@@ -310,7 +310,7 @@ y = zeros(l,1);
 X = zeros(l,10);
 count = 1;
 for i = 1:l
-    if (raw_data{i}.iteration<96)
+    if (raw_data{i}.iteration<16)
         y(count) = raw_data{i}.score;
         X(count,:) = [(raw_data{i}.finaldrive-10)/(40-10),str2num(raw_data{i}.keys)];
         count = count + 1;
@@ -354,13 +354,13 @@ for i = 1:10
 end
 plot(mean(best_score100,1));
 
-score100 = zeros(10,210);
+score500 = zeros(10,210);
 count = ones(1,210);
 for i = 1:5
-    raw_data = loadjson(['ego100_',num2str(i),'.json']);
+    raw_data = loadjson(['ego500_',num2str(i),'.json']);
     for j = 1:length(raw_data)
         d = raw_data{j};
-        score100(count(d.iteration+1),d.iteration+1) = d.score;
+        score500(count(d.iteration+1),d.iteration+1) = d.score;
         count(d.iteration+1) = count(d.iteration+1) + 1;
     end
 end

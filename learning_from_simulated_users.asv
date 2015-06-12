@@ -6,23 +6,69 @@
 
 addpath('..\..\code\tools\jsonlab\');
 
-%% create a one-class classifier using control parameters and simulated scores
-limit = 100;
-y = zeros(limit,1);
-X = zeros(limit,10);
+%% get a set of "good" players
+original_data = loadjson('.\data.json');
+player_performance = cell(250,1);
+good_player = [];
+player_gameid = cell(250,1);
+for i = 1:length(original_data)
+    data = original_data{i};
+    score = (1-data.score/3600/0.55/1000)*100*sign(data.score+1);
 
+    if isempty(player_performance{data.userid})
+        player_performance{data.userid} = score;
+        player_gameid{data.userid} = data.id;
+    else
+        player_performance{data.userid} = [player_performance{data.userid}, score];
+        player_gameid{data.userid} = [player_gameid{data.userid}, data.id];
+    end
+end
+for i = 1:length(player_performance)
+    data = player_performance{i};
+    if any(data(1:min(50,length(data)))>5)
+        good_player = [good_player, i];
+    end
+end
+
+%% create a one-class classifier using control parameters and simulated scores
+limit = 500;
 raw_data = loadjson('controlparameter_score_1_500.json');
 raw_data = raw_data.controlparameter;
 score_after_parameter = loadjson('score_after_parameter.json');
-y = raw_data.score(1:limit,:);
-X = raw_data.w(1:limit,:);
-% update score using simulation results after control parameterization
+y = raw_data.score(:,:);
+X = raw_data.w(:,:);
 for i = 1:length(score_after_parameter)
     % NOTE score_after_parameter{i}.game_id starts from ZERO!!!
     if score_after_parameter{i}.game_id+1<=limit
         y(score_after_parameter{i}.game_id+1) = score_after_parameter{i}.score;
     end
 end
+
+ID = zeros(limit,1);
+count = 1;
+% update score using simulation results after control parameterization
+for i = 1:length(y)
+    % NOTE game_id starts from ZERO!!!
+    if count<=limit
+        for j = 1:length(good_player)
+            gameid = player_gameid{good_player(j)};
+            if any(gameid==(i-1))
+                ID(count) = i;
+                count = count + 1;
+                break;
+            end
+        end
+    end
+end
+
+yy = y(ID);
+XX = X(ID,:);
+
+Xtrain = XX(yy>0.1,:);
+model = svmtrain(ones(size(Xtrain,1),1), Xtrain, '-s 2 -t 2 -n 1e-6 -e 1e-12');
+model.SVs = full(model.SVs);
+model.sv_coef = model.sv_coef';
+savejson('model',model,'.\human_model_goodppl_threshold5_first500.json');
 
 % %use SVM for regression
 % % normalize X
@@ -35,11 +81,12 @@ end
 % y = (y-ymean)/ystd;
 % [n,p] = size(X);
 % lambda = p;
+% addpath('..\..\code\tools\libsvm\matlab\');
+% model = svmtrain(y, X, '-s 3 -t 2');
+% model.SVs = full(model.SVs);
+% savejson('model',model,['.\player_model_',num2str(limit),'.json']);
 
-addpath('..\..\code\tools\libsvm\matlab\');
-model = svmtrain(y, X, '-s 3 -t 2');
-model.SVs = full(model.SVs);
-savejson('model',model,['.\player_model_',num2str(limit),'.json']);
+
 % 
 % % check classification using 2d projection
 % D = squareform(pdist(X, 'euclidean'));
@@ -56,7 +103,7 @@ savejson('model',model,['.\player_model_',num2str(limit),'.json']);
 
 
 %% validate the classifier
-data = loadjson('.\player_model.json');
+data = loadjson('.\EGO_model500.json');
 model = data.model;
 svs = model.SVs;
 w = model.sv_coef;
@@ -73,22 +120,26 @@ for i = 1:sample_size
     test_y(i) = test_y(i) - rho;
 end
 
-% test conditions:
-% distance = 0~900
-% slope = 1
-% speed = 0
+testname = 'acc'; % acc for initial acceleration, brk for final braking
 
-%check uphill, zero speed, should acc
-test_d = 0:0.1:1;
-test_s = 1;
-test_v = 0;
-test_t = 0:0.1:1;
+if strcmp(testname,'acc')
+    % test conditions:
+    % distance = 0~900
+    % slope = 1
+    % speed = 0
 
-% %check downhill, max speed, close to the end, should brk
-% test_d = 0:0.01:0.1;
-% test_s = -1;
-% test_v = 1;
-% test_t = 0.1:0.1:1;
+    %check uphill, zero speed, should acc
+    test_d = 0:0.1:1;
+    test_s = 1;
+    test_v = 0;
+    test_t = 0:0.1:1;
+elseif strcmp(testname,'brk')
+    %check downhill, max speed, close to the end, should brk
+    test_d = 0:0.01:0.1;
+    test_s = -1;
+    test_v = 1;
+    test_t = 0.1:0.1:1;
+end
 
 test_conditions = zeros(length(test_d)*length(test_t),9);
 count = 1;
@@ -110,34 +161,41 @@ end
 
 positive = test_signal(test_y>0,:);
 negative = test_signal(test_y<0,:);
-% correct_positive = sum(sum(positive>0.5))/numel(positive);
-% correct_negative = sum(sum(negative>0.5))/numel(negative);
-correct_positive = sum(sum(positive<-0.5))/numel(positive);
-correct_test_signal = sum(sum(test_signal<-0.5))/numel(test_signal);
+% if strcmp(testname,'acc')
+%     correct_positive = sum(sum(positive>0.5))/numel(positive);
+%     correct_negative = sum(sum(negative>0.5))/numel(negative);
+% elseif strcmp(testname,'brk')
+%     correct_positive = sum(sum(positive<-0.5))/numel(positive);
+%     correct_test_signal = sum(sum(test_signal<-0.5))/numel(test_signal);
+% end
 
 % plot the chance to follow rules at each state
-% signal_for_state_in_positive = sum(positive>0.5)/size(positive,1);
-% signal_for_state_in_test_signal = sum(test_signal>0.5)/size(test_signal,1);
-signal_for_state_in_positive = sum(positive<-0.5)/size(positive,1);
-signal_for_state_in_test_signal = sum(test_signal<-0.5)/size(test_signal,1);
+if strcmp(testname,'acc')
+    signal_for_state_in_positive = sum(positive>0.5)/size(positive,1);
+    signal_for_state_in_test_signal = sum(test_signal>0.5)/size(test_signal,1);
+elseif strcmp(testname,'brk')
+    signal_for_state_in_positive = sum(positive<-0.5)/size(positive,1);
+    signal_for_state_in_test_signal = sum(test_signal<-0.5)/size(test_signal,1);
+end
+
 figure; hold on;
 surf(reshape(signal_for_state_in_positive,length(test_t),length(test_d)));
 surf(reshape(signal_for_state_in_test_signal,length(test_t),length(test_d)));
 colormap(gray)
-caxis([0,1])
+caxis([0.2,0.7])
 colorbar
 
-contourf(reshape(signal_for_state_in_positive,length(test_t),length(test_d)),100)
-colormap(gray)
-shading flat
-caxis([0.4,0.9])
-colorbar
-figure
-contourf(reshape(signal_for_state_in_test_signal,length(test_t),length(test_d)),100)
-colormap(gray)
-shading flat
-caxis([0.4,0.9])
-colorbar
+% contourf(reshape(signal_for_state_in_positive,length(test_t),length(test_d)),100)
+% colormap(gray)
+% shading flat
+% caxis([0.4,0.9])
+% colorbar
+% figure
+% contourf(reshape(signal_for_state_in_test_signal,length(test_t),length(test_d)),100)
+% colormap(gray)
+% shading flat
+% caxis([0.4,0.9])
+% colorbar
 
 % figure; hold on;
 % for i = 1:1000
