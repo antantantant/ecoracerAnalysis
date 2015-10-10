@@ -14,8 +14,8 @@
 
 % convert data from all users from data.json
 % use the data to simulate and collect data to fit the control parameters
-% addpath('..\..\code\tools\jsonlab\');
-% loadjson('data.json')
+% addpath('..\..\..\code\tools\jsonlab\');
+% loadjson('..\data.json')
 % raw_data = ans;
 l = length(raw_data);
 
@@ -51,17 +51,64 @@ for i = 1:l
         acc_sig = [acc_sig,1];
     end
     if (mod(length(brk),2)~=0)
-        brk = [brk,909*20];
+        if length(brk)>1
+            if brk(end)-brk(end-1)>0
+                brk = [brk,909*20];
+            else
+                brk = [brk,1];
+            end
+        else
+            brk = [brk,909*20];
+        end
         brk_sig = [brk_sig,-1];
     end
+    
+    if ~isempty(acc)
+        late_start = find(acc(1:2:end)<acc(1));
+        if (late_start)
+            late_start = 2*(late_start-1)+1;
+            acc = acc(late_start:end);
+        end
+    end
+    acc_sig(2:2:end-1) = 0;
+    brk_sig(2:2:end-1) = 0;
     x = [acc,brk];
     sig = [acc_sig,brk_sig];
     [x_sort,id] = sort(x,'ascend');
     sig_sort = sig(id);
-    sig_sort(2:2:end-1) = 0;
-
-    alluser{i} = struct('x',x_sort,'sig',sig_sort,...
-        'fr',raw_data{i}.finaldrive,'score',raw_data{i}.score);
+    
+    
+    
+    
+    total_signal = zeros(1,909*20+1);
+    for acc_id = 1:2:length(acc)
+        total_signal(acc(acc_id):acc(acc_id+1)) = 1;
+    end
+    
+    for brk_id = 1:2:length(brk) % if brake is pressed, do brake (even if acc is pressed as well)
+        if (brk(brk_id)>500)
+            total_signal(brk(brk_id):(sign(brk(brk_id+1)-brk(brk_id))):brk(brk_id+1)) = -1;
+            if(brk_id+1<length(brk)) % when brake is released, go back to 0
+                if(total_signal(brk(brk_id+1)+1)==1)
+                    released = find(total_signal((brk(brk_id+1)+1):end)==0,1);
+                    total_signal(brk(brk_id+1)+(1:released)) = 0;
+                end
+            else % from brake to acc, there should be some gap
+                if(total_signal(brk(brk_id+1)+1)==1)
+                    released = find(total_signal((brk(brk_id+1)+1):end)==0,1);
+                    total_signal(brk(brk_id+1)+(1:released)) = 0;
+                end
+            end
+        end
+    end
+    total_signal(908*20+1:end)=[];
+    
+    plot(total_signal,'LineWidth',3)
+    alluser{i} = struct('id',raw_data{i}.id,'userid',raw_data{i}.userid,'x',x_sort,...
+        'sig',sig_sort,'fr',raw_data{i}.finaldrive,'score',...
+        raw_data{i}.score,'time',raw_data{i}.time,'ranking_percentage',raw_data{i}.ranking_percentage,...
+        'ranking_scoreboard',raw_data{i}.ranking_scoreboard,...
+        'total_signal',total_signal);
     allscore(i) = raw_data{i}.score;
 end
 savejson('alluser_control',alluser,...
